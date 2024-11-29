@@ -1,0 +1,87 @@
+# Python-specific ignores
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+.venv/
+env/
+venv/
+ENV/
+.virtualenv/
+.virtualenvs/
+
+# Environment variables file
+.env
+.env.*
+
+# Logs and debug files
+*.log
+*.out
+*.err
+
+# IDE-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# MacOS-specific files
+.DS_Store
+*.AppleDouble
+.LSOverride
+
+# Byte-compiled or optimised Python code
+*.pyc
+*.pyo
+*.pyd
+
+# Python egg and distribution files
+*.egg
+*.egg-info/
+dist/
+build/
+*.wheel
+
+# Database dumps and migrations
+*.sqlite3
+migrations/
+
+# Generated files (like posters in your app)
+generated_files/
+posters/
+
+# Cloud deployment files
+*.pem
+*.key
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# Tests and coverage reports
+.coverage
+*.cover
+htmlcov/
+.cache
+pytest_cache/
+nosetests.xml
+coverage.xml
+*.spec
+
+*.pem
+*.key
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Temporary files
+*.bak
+*.tmp
+*.orig
+*.save
+
+# Editor backups
+*.~*~
