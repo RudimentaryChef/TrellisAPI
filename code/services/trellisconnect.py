@@ -1,46 +1,115 @@
-import requests
 import os
+import requests
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
 
-# Retrieve the API key
-TRELLIS_API_KEY = os.getenv("TRELLIS_API_KEY")
-if not TRELLIS_API_KEY:
-    raise ValueError("TRELLIS_API_KEY environment variable is not set.")
+class TrellisAPIClient:
+    def __init__(self):
+        # Load environment variables
+        load_dotenv()
+        self.api_key = os.getenv("TRELLIS_API_KEY")
+        if not self.api_key:
+            raise ValueError("The environment variable TRELLIS_API_KEY is not set.")
+        self.headers = {
+            "Authorization": self.api_key,
+            "Content-Type": "application/json"
+        }
+        self.base_url = "https://api.runtrellis.com/v1"
+        self.project_id = None
+        self.transform_id = None
 
-# Set project name
-YOUR_PROJ_NAME = "InterviewProject"
+    def create_project(self, project_name):
+        url = f"{self.base_url}/projects/create"
+        payload = {"name": project_name}
+        try:
+            response = requests.post(url, json=payload, headers=self.headers)
+            response.raise_for_status()
+            self.project_id = response.json().get("data", {}).get("proj_id")
+            if not self.project_id:
+                raise ValueError("Failed to retrieve 'proj_id' from the project creation response.")
+            print(f"Project created with ID: {self.project_id}")
+        except requests.exceptions.RequestException as exception:
+            print(f"Error creating project: {exception}")
+            raise
 
-# Define headers
-headers = {
-    "Authorization":TRELLIS_API_KEY,
-    "Content-Type": "application/json"
-}
+    def create_transform(self, transform_name, transform_parameters):
+        if not self.project_id:
+            raise ValueError("The project ID is not set. Please create a project first.")
+        url = f"{self.base_url}/transforms/create"
+        payload = {
+            "proj_id": self.project_id,
+            "transform_name": transform_name,
+            "transform_params": transform_parameters
+        }
+        try:
+            response = requests.post(url, json=payload, headers=self.headers)
+            response.raise_for_status()
+            self.transform_id = response.json().get("data", {}).get("transform_id")
+            if not self.transform_id:
+                raise ValueError("Failed to retrieve 'transform_id' from the transform creation response.")
+            print(f"Transform created with ID: {self.transform_id}")
+        except requests.exceptions.RequestException as exception:
+            print(f"Error creating transform: {exception}")
+            raise
 
-# Create a new project
-project_url = "https://api.runtrellis.com/v1/projects/create"
-project_payload = {"name": YOUR_PROJ_NAME}
+    def create_event_subscriptions(self):
+        if not self.project_id or not self.transform_id:
+            raise ValueError("The project ID or transform ID is not set. Ensure both are created.")
+        url = f"{self.base_url}/events/subscriptions/actions/bulk"
+        payload = {
+            "events_with_actions": [
+                {
+                    "event_type": "asset_uploaded",
+                    "proj_id": self.project_id,
+                    "actions": [
+                        {"type": "run_extraction", "proj_id": self.project_id}
+                    ],
+                },
+                {
+                    "event_type": "asset_extracted",
+                    "proj_id": self.project_id,
+                    "actions": [
+                        {"type": "refresh_transform", "transform_id": self.transform_id}
+                    ]
+                }
+            ]
+        }
+        try:
+            response = requests.post(url, json=payload, headers=self.headers)
+            response.raise_for_status()
+            print("Event subscriptions created successfully.")
+        except requests.exceptions.RequestException as exception:
+            print(f"Error creating event subscriptions: {exception}")
+            raise
 
-try:
-    project_response = requests.post(project_url, json=project_payload, headers=headers)
-    project_response.raise_for_status()  # Raise an exception for HTTP errors
-    proj_id = project_response.json().get("data", {}).get("proj_id")
-    if not proj_id:
-        raise ValueError("Failed to retrieve 'proj_id' from the project creation response.")
-    print(f"Project ID: {proj_id}")
-except requests.exceptions.RequestException as e:
-    print(f"Error creating project: {e}")
-    print(f"Response: {project_response.text}")
-    raise
+    def upload_assets(self, asset_urls):
+        if not self.project_id:
+            raise ValueError("The project ID is not set. Please create a project first.")
+        url = f"{self.base_url}/assets/upload"
+        payload = {
+            "proj_id": self.project_id,
+            "urls": asset_urls
+        }
+        try:
+            response = requests.post(url, json=payload, headers=self.headers)
+            response.raise_for_status()
+            asset_ids = [data["asset_id"] for data in response.json()["data"]]
+            print(f"Assets uploaded with IDs: {asset_ids}")
+        except requests.exceptions.RequestException as exception:
+            print(f"Error uploading assets: {exception}")
+            raise
 
-# Create a transform
-transform_url = "https://api.runtrellis.com/v1/transforms/create"
-transform_payload = {
-    "proj_id": proj_id,
-    "transform_name": "course_analysis",
-    "transform_params": {
+
+if __name__ == "__main__":
+    # Example usage
+    trellis_client = TrellisAPIClient()
+
+    # Create a project
+    project_name = "InterviewProject"
+    trellis_client.create_project(project_name)
+
+    # Define transform parameters
+    transform_parameters = {
         "model": "trellis-premium",
         "mode": "document",
         "operations": [
@@ -74,7 +143,7 @@ transform_payload = {
             },
             {
                 "column_name": "course_price",
-                "column_type": "numeric",  # Corrected from "decimal"
+                "column_type": "numeric",
                 "transform_type": "extraction",
                 "task_description": "Extract the price of the course."
             },
@@ -102,7 +171,7 @@ transform_payload = {
             },
             {
                 "column_name": "course_rating",
-                "column_type": "numeric",  # Corrected from "float"
+                "column_type": "numeric",
                 "transform_type": "extraction",
                 "task_description": "Extract the rating of the course."
             },
@@ -118,52 +187,11 @@ transform_payload = {
             }
         ]
     }
-}
+    trellis_client.create_transform("course_analysis", transform_parameters)
 
-try:
-    transform_response = requests.post(transform_url, json=transform_payload, headers=headers)
-    transform_id = transform_response.json()["data"]["transform_id"]
-    transform_response.raise_for_status()
-    transform_data = transform_response.json()
-    print(f"Transform creation response: {transform_data}")
-except requests.exceptions.RequestException as e:
-    print(f"Error creating transform: {e}")
-    print(f"Response: {transform_response.text}")
-    raise
+    # Create event subscriptions
+    trellis_client.create_event_subscriptions()
 
-
-
-url = f"https://api.runtrellis.com/v1/events/subscriptions/actions/bulk"
-payload = { "events_with_actions": [
-        {
-            "event_type": "asset_uploaded",
-            "proj_id": proj_id,
-            "actions": [
-                {
-                    "type": "run_extraction",
-                    "proj_id": proj_id
-                }
-            ],
-        },
-        {
-            "event_type": "asset_extracted",
-            "proj_id": proj_id,
-            "actions": [
-                {
-                    "type": "refresh_transform",
-                    "transform_id": transform_id
-                }
-            ]
-        }
-    ] }
-headers = {
-    "accept": "application/json",
-    "content-type": "application/json",
-    "Authorization": TRELLIS_API_KEY
-}
-
-response = requests.post(url, json=payload, headers=headers)
-
-print(response.text)
-
-
+    # Upload assets
+    asset_urls = ["https://storage.googleapis.com/imagestorageclasshopper/UmangFlyer.png"]
+    trellis_client.upload_assets(asset_urls)
